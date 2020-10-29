@@ -3,7 +3,9 @@ import simpleaudio as sa
 import time
 import argparse
 
+
 fs = 44100  # 44100 samples per second
+
 
 def play_tone(tone):
     # Start playback
@@ -12,7 +14,8 @@ def play_tone(tone):
     # Wait for playback to finish before exiting
     play_obj.wait_done()
 
-def create_tone(f, d=1.0, v=1.0):
+
+def create_tone(f: int, d=1.0, v=1.0):
     t = np.linspace(0, d, int(d * fs), False)
 
     note = np.sin(f * t * 2 * np.pi)
@@ -23,12 +26,15 @@ def create_tone(f, d=1.0, v=1.0):
     audio = audio.astype(np.int16)
     return audio
 
-def play_two_tone_pattern(freq_1, freq_2, d, p, v):
-    audio = create_tone(freq_1, d, v)
-    play_tone(audio)
-    time.sleep(p)
-    audio = create_tone(freq_2, d, v)
-    play_tone(audio)
+
+def play_two_tone_pattern(d: float, p: float, v: float):
+    def play_func(freq_1: int, freq_2: int):
+        audio = create_tone(freq_1, d, v)
+        play_tone(audio)
+        time.sleep(p)
+        audio = create_tone(freq_2, d, v)
+        play_tone(audio)
+    return play_func
 
 
 def parse_arguments():
@@ -71,7 +77,9 @@ def parse_arguments():
         parser.error("the long pause between tone pairs should be a decimal number in seconds, ranging from 0.1 to 3.0.")
     return args
 
+
 def main():
+
     args = parse_arguments()
     frequency_max = max(args.frequency)
     frequency_min = min(args.frequency)
@@ -80,12 +88,14 @@ def main():
         frequency_center = args.target_freq
     change_factor = args.change_rate / 100.0
     volume = abs(args.volume) / 100.0
-    play_two_tone_pattern(frequency_min, frequency_max, args.tone_duration, args.tone_pause, volume)
+    play = play_two_tone_pattern(args.tone_duration, args.tone_pause, volume)
+
+    play(frequency_min, frequency_max)
     for i in range(args.cycles - 1):
         time.sleep(args.long_pause)
         frequency_max -= int(abs(frequency_max - frequency_center) * change_factor)
         frequency_min += int(abs(frequency_min - frequency_center) * change_factor)
-        play_two_tone_pattern(frequency_min, frequency_max, args.tone_duration, args.tone_pause, args.volume)
+        play(frequency_min, frequency_max)
 
 
 if __name__ == '__main__':
