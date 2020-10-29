@@ -29,8 +29,8 @@ def create_tone(f: int, d=1.0, v=1.0):
     return audio
 
 
-def play_two_tone_pattern(d: float, p: float, v: float):
-    def play_func(freq_1: int, freq_2: int):
+def play_two_tone_pattern(d: float, p: float):
+    def play_func(freq_1: int, freq_2: int, v: float):
         audio = create_tone(freq_1, d, v)
         play_tone(audio)
         time.sleep(p)
@@ -46,12 +46,14 @@ def parse_arguments():
                                      allow_abbrev=False)
     parser.add_argument('cycles', type=int, help='Number of times to play tone pairs. Must be a whole number of at least 1.')
     parser.add_argument('frequency', nargs=2, type=int, help='frequencies of the tones. Two whole numbers are expected. They should be in the range 100-20000.')
-    parser.add_argument("-t", '--target-freq', type=int, help='''frequency to converge tones toward. Must be a whole number. Should be in the range 100-20000. 
+    parser.add_argument("-t", '--target-frequency', type=int, help='''frequency to converge tones toward. Must be a whole number. Should be in the range 100-20000. 
                         Defaults to exactly between the two tone frequencies.''')
-    parser.add_argument("-v", '--volume', default=50.0, type=float,
+    parser.add_argument("-v", '--initial-volume', default=50.0, type=float,
                         help='Volume to use when playing tones. A Number (percentage) from 0.0 - 100.0. Default is 50%.')
     parser.add_argument("-c", '--change-rate', default=50.0, type=float,
                         help='Rate to change frequencies by with each cycle. A Number (percentage) from 5.0 - 80.0. Default is 50%.')
+    parser.add_argument("-vf", '--final-volume', default=None, type=float,
+                        help='Rate to change volume by with each cycle. A Number (percentage) from 0.0 - 100.0. Default is the same as the initial volume.')
     parser.add_argument("-d", '--tone-duration', default=1.0, type=float,
                         help='Time in Seconds, for each tone to play. Number ranging from 0.1 to 3.0. Default is 1 second.')
     parser.add_argument("-p", '--tone-pause', default=0.5, type=float,
@@ -65,11 +67,11 @@ def parse_arguments():
         parser.error("the minimum frequency should be a whole number of 100 or greater.")
     if max(args.frequency) > 20000:
         parser.error("the maximum frequency should be a whole number of 20000 or less.")
-    if args.target_freq and not (args.target_freq <= 20000 and args.target_freq >= 100):
+    if args.target_frequency and not (args.target_frequency <= 20000 and args.target_frequency >= 100):
         parser.error("the convergence frequency should be a whole number ranging from 100 to 20000.")
     if args.change_rate < 5.0 or args.change_rate > 80.0:
         parser.error("the rate of change for frequencies should be a decimal number (representing a percentage) ranging from 5.0 to 80.0.")
-    if args.volume < 0.0 or args.volume > 100.0:
+    if args.initial_volume < 0.0 or args.initial_volume > 100.0:
         parser.error("the volume should be a decimal number (representing a percentage) ranging from 0 to 100.")
     if args.tone_duration < 0.1 or args.tone_duration > 3.0:
         parser.error("the tone duration should be a decimal number in seconds, ranging from 0.1 to 3.0.")
@@ -77,28 +79,38 @@ def parse_arguments():
         parser.error("the pause between individual tones should be a decimal number in seconds, ranging from 0.1 to 3.0.")
     if args.long_pause < 0.1 or args.long_pause > 3.0:
         parser.error("the long pause between tone pairs should be a decimal number in seconds, ranging from 0.1 to 3.0.")
+    if args.final_volume is not None and (args.final_volume < 0.0 or args.final_volume > 100.0):
+        parser.error("the final volume should be a decimal number (representing a percentage) ranging from 0 to 100.")
     return args
 
 
 def main():
 
-    args = parse_arguments()
-    frequency_max = max(args.frequency)
-    frequency_min = min(args.frequency)
-    frequency_center = int((frequency_max - frequency_min) / 2) + frequency_min
-    if args.target_freq:
-        frequency_center = args.target_freq
-    change_factor = args.change_rate / 100.0
-    volume = abs(args.volume) / 100.0
-    play = play_two_tone_pattern(args.tone_duration, args.tone_pause, volume)
+    try:
+        args = parse_arguments()
+        frequency_max = max(args.frequency)
+        frequency_min = min(args.frequency)
+        frequency_center = int((frequency_max - frequency_min) / 2) + frequency_min
+        if args.target_frequency:
+            frequency_center = args.target_frequency
+        change_factor = args.change_rate / 100.0
+        volume = abs(args.initial_volume) / 100.0
+        volume_change_rate = 0
+        if args.final_volume is not None:
+            volume_change_rate = abs(args.final_volume - args.initial_volume) / (args.cycles * 100)
+        play = play_two_tone_pattern(args.tone_duration, args.tone_pause)
 
-    play(frequency_min, frequency_max)
-    for i in range(args.cycles - 1):
         time.sleep(args.long_pause)
-        frequency_max -= int(abs(frequency_max - frequency_center) * change_factor)
-        frequency_min += int(abs(frequency_min - frequency_center) * change_factor)
-        play(frequency_min, frequency_max)
-
+        play(frequency_min, frequency_max, volume)
+        for i in range(args.cycles - 1):
+            time.sleep(args.long_pause)
+            frequency_max -= int(abs(frequency_max - frequency_center) * change_factor)
+            frequency_min += int(abs(frequency_min - frequency_center) * change_factor)
+            if args.final_volume is not None:
+                volume -= volume_change_rate
+            play(frequency_min, frequency_max, volume)
+    except KeyboardInterrupt:
+        return
 
 if __name__ == '__main__':
     main()
